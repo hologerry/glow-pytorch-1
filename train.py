@@ -1,13 +1,10 @@
 from tqdm import tqdm
-import numpy as np
-from PIL import Image
-from math import log, sqrt, pi
+from math import log
 
 import argparse
 
 import torch
 from torch import nn, optim
-from torch.autograd import Variable, grad
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms, utils
 
@@ -16,7 +13,7 @@ from model import Glow
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 parser = argparse.ArgumentParser(description='Glow trainer')
-parser.add_argument('--batch', default=16, type=int, help='batch size')
+parser.add_argument('--batch', default=32, type=int, help='batch size')
 parser.add_argument('--iter', default=200000, type=int, help='maximum iterations')
 parser.add_argument(
     '--n_flow', default=32, type=int, help='number of flows in each block'
@@ -31,7 +28,7 @@ parser.add_argument(
     '--affine', action='store_true', help='use affine coupling instead of additive'
 )
 parser.add_argument('--n_bits', default=5, type=int, help='number of bits')
-parser.add_argument('--lr', default=1e-4, type=float, help='learning rate')
+parser.add_argument('--lr', default=1e-5, type=float, help='learning rate')
 parser.add_argument('--img_size', default=64, type=int, help='image size')
 parser.add_argument('--temp', default=0.7, type=float, help='temperature of sampling')
 parser.add_argument('--n_sample', default=20, type=int, help='number of samples')
@@ -42,8 +39,8 @@ def sample_data(path, batch_size, image_size):
     transform = transforms.Compose(
         [
             transforms.Resize(image_size),
-            transforms.CenterCrop(image_size),
-            transforms.RandomHorizontalFlip(),
+            # transforms.CenterCrop(image_size),
+            # transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (1, 1, 1)),
         ]
@@ -116,7 +113,7 @@ def train(args, model, optimizer):
                     continue
 
             else:
-                log_p, logdet, _ = model(image + torch.rand_like(image) / n_bins)
+                log_p, logdet, z_encode = model(image + torch.rand_like(image) / n_bins)
 
             logdet = logdet.mean()
 
@@ -136,18 +133,25 @@ def train(args, model, optimizer):
                 with torch.no_grad():
                     utils.save_image(
                         model_single.reverse(z_sample).cpu().data,
-                        f'sample/{str(i + 1).zfill(6)}.png',
+                        f'mcgan_B_sample/{str(i).zfill(6)}.png',
                         normalize=True,
                         nrow=10,
+                        range=(-0.5, 0.5),
+                    )
+                    utils.save_image(
+                        model_single.reverse(z_encode).cpu().data,
+                        f'mcgan_B_sample/reverse_{str(i).zfill(6)}.png',
+                        normalize=True,
+                        nrow=8,
                         range=(-0.5, 0.5),
                     )
 
             if i % 10000 == 0:
                 torch.save(
-                    model.state_dict(), f'checkpoint/model_{str(i + 1).zfill(6)}.pt'
+                    model.state_dict(), f'mcgan_B_checkpoint/model_{str(i).zfill(6)}.pt'
                 )
                 torch.save(
-                    optimizer.state_dict(), f'checkpoint/optim_{str(i + 1).zfill(6)}.pt'
+                    optimizer.state_dict(), f'mcgan_B_checkpoint/optim_{str(i).zfill(6)}.pt'
                 )
 
 

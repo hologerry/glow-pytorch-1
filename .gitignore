@@ -103,7 +103,9 @@ venv.bak/
 # mypy
 .mypy_cache/
 
-celeba/*
-explo/*
-explo_sample/*
+# custom
+celeba*
+explo*
 mcgan*
+sample/*
+checkpoint/*

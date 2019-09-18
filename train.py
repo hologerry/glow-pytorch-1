@@ -117,6 +117,9 @@ def train(args, model, optimizer):
         for key, value in vars(args).items():
             f.write(str(key)+": "+str(value)+'\n')
 
+    # open loss log file
+    loss_log = open(os.path.join(log_dir, 'losses.txt'), 'w')
+
     dataset = iter(sample_data(args.path, args.batch, args.img_size))
     n_bins = 2. ** args.n_bits
 
@@ -164,10 +167,10 @@ def train(args, model, optimizer):
             optimizer.param_groups[0]['lr'] = warmup_lr
 
             optimizer.step()
-
-            pbar.set_description(
-                f'Loss: {loss.item():.5f}; logP: {log_p.item():.5f}; logdet: {log_det.item():.5f}; lr: {warmup_lr:.7f}'
-            )
+            log_message = (f'Loss: {loss.item():.5f}; logP: {log_p.item():.5f}; \
+                           logdet: {log_det.item():.5f}; lr: {warmup_lr:.7f}')
+            pbar.set_description(log_message)
+            loss_log.write(log_message+'\n')
 
             if i % args.sample_freq == 0:
                 with torch.no_grad():
@@ -201,6 +204,7 @@ def train(args, model, optimizer):
                         range=(-0.5, 0.5),
                     )
 
+            # save checkpoint
             if i % args.check_freq == 0:
                 torch.save(
                     model.state_dict(), os.path.join(log_dir, 'checkpoint', f'model_{str(i).zfill(6)}.pt')

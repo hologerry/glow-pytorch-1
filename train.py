@@ -40,7 +40,7 @@ parser.add_argument('--sample_freq', default=100, type=int, help='interval of sa
 parser.add_argument('--check_freq', default=1000, type=int, help='interval of save checkpoints')
 parser.add_argument('--experiment_dir', default='experiment', type=str,
                     help="experiments directory save the samples and checkpoint")
-parser.add_argument('path', metavar='PATH', type=str, required=True, help='Path to image(dataset) directory')
+parser.add_argument('path', metavar='PATH', type=str, help='Path to image(dataset) directory')
 
 
 def sample_data(path, batch_size, image_size):
@@ -113,8 +113,9 @@ def train(args, model, optimizer):
 
     # dump args
     with open(os.path.join(log_dir, 'opts.txt'), 'w') as f:
+        f.write("experiment log dir: "+str(log_dir)+'\n')
         for key, value in vars(args).items():
-            f.write(key+"\t"+value+'\n')
+            f.write(str(key)+": "+str(value)+'\n')
 
     dataset = iter(sample_data(args.path, args.batch, args.img_size))
     n_bins = 2. ** args.n_bits

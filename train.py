@@ -106,6 +106,10 @@ def train(args, model, optimizer):
     log_dir = os.path.join(args.experiment_dir, "exp_"+date)
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
+    if not os.path.exists(os.path.join(log_dir, "sample")):
+        os.makedirs(os.path.join(log_dir, "sample"))
+    if not os.path.exists(os.path.join(log_dir, "checkpoint")):
+        os.makedirs(os.path.join(log_dir, "checkpoint"))
 
     # dump args
     with open(os.path.join(log_dir, 'opts.txt'), 'w') as f:

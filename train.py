@@ -40,7 +40,7 @@ parser.add_argument('--sample_freq', default=100, type=int, help='interval of sa
 parser.add_argument('--check_freq', default=1000, type=int, help='interval of save checkpoints')
 parser.add_argument('--experiment_dir', default='experiment', type=str,
                     help="experiments directory save the samples and checkpoint")
-parser.add_argument('path', metavar='PATH', type=str, required=True, help='Path to image directory')
+parser.add_argument('path', metavar='PATH', type=str, required=True, help='Path to image(dataset) directory')
 
 
 def sample_data(path, batch_size, image_size):
@@ -123,6 +123,15 @@ def train(args, model, optimizer):
         model = model.load_state_dict(torch.load(latest_model))
         optimizer = optimizer.load_state_dict(torch.load(latest_optimizer))
 
+    # calculate the z shapes
+    z_shapes = calc_z_shapes(3, args.img_size, args.n_flow, args.n_block)
+
+    # sample the first z which is consistent during traing, used to measure the performance
+    z_sample_first = []
+    for z in z_shapes:
+        z_new = torch.randn(args.n_sample, *z) * args.temp
+        z_sample_first.append(z_new.to(device))
+
     with tqdm(range(args.iter)) as pbar:
         for i in pbar:
             image, _ = next(dataset)
@@ -158,7 +167,6 @@ def train(args, model, optimizer):
             if i % args.sample_freq == 0:
                 with torch.no_grad():
                     z_sample = []
-                    z_shapes = calc_z_shapes(3, args.img_size, args.n_flow, args.n_block)
                     for z in z_shapes:
                         z_new = torch.randn(args.n_sample, *z) * args.temp
                         z_sample.append(z_new.to(device))
@@ -167,6 +175,14 @@ def train(args, model, optimizer):
                     utils.save_image(
                         model_single.reverse(z_sample).cpu().data,
                         os.path.join(log_dir, 'sample', f'{str(i).zfill(6)}.png'),
+                        normalize=True,
+                        nrow=args.n_sample//4,
+                        range=(-0.5, 0.5),
+                    )
+                    # sample at first
+                    utils.save_image(
+                        model_single.reverse(z_sample_first).cpu().data,
+                        os.path.join(log_dir, 'sample', f'{str(i).zfill(6)}_first.png'),
                         normalize=True,
                         nrow=args.n_sample//4,
                         range=(-0.5, 0.5),

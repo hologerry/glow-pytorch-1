@@ -167,10 +167,11 @@ def train(args, model, optimizer):
             optimizer.param_groups[0]['lr'] = warmup_lr
 
             optimizer.step()
-            log_message = (f'Loss: {loss.item():.5f}; logP: {log_p.item():.5f}; \
-                           logdet: {log_det.item():.5f}; lr: {warmup_lr:.7f}')
+            log_message = (f'Loss: {loss.item():.5f}; logP: {log_p.item():.5f}; '
+                           f'logdet: {log_det.item():.5f}; lr: {warmup_lr:.7f}')
             pbar.set_description(log_message)
             loss_log.write(log_message+'\n')
+            loss_log.flush()
 
             if i % args.sample_freq == 0:
                 with torch.no_grad():

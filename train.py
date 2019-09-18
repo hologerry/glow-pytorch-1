@@ -200,7 +200,7 @@ def train(args, model, optimizer):
                         model_single.reverse(z_encode).cpu().data,
                         os.path.join(log_dir, 'sample', f'{str(i).zfill(6)}_reverse.png'),
                         normalize=True,
-                        nrow=args.batch_size//4,
+                        nrow=args.batch//4,
                         range=(-0.5, 0.5),
                     )
 

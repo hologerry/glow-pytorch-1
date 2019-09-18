@@ -113,7 +113,7 @@ def train(args, model, optimizer):
 
     # dump args
     with open(os.path.join(log_dir, 'opts.txt'), 'w') as f:
-        f.write("experiment log dir: "+str(log_dir)+'\n')
+        f.write("experiment_log_dir: "+str(log_dir)+'\n')
         for key, value in vars(args).items():
             f.write(str(key)+": "+str(value)+'\n')
 
@@ -167,9 +167,14 @@ def train(args, model, optimizer):
             optimizer.param_groups[0]['lr'] = warmup_lr
 
             optimizer.step()
-            log_message = (f'Loss: {loss.item():.5f}; logP: {log_p.item():.5f}; '
-                           f'logdet: {log_det.item():.5f}; lr: {warmup_lr:.7f}')
-            pbar.set_description(log_message)
+
+            # log loss
+            message = (
+                f'Loss: {loss.item():.5f}; logP: {log_p.item():.5f}; '
+                f'logdet: {log_det.item():.5f}; lr: {warmup_lr:.7f}'
+            )
+            pbar.set_description(message)
+            log_message = f'Step: {i}/{args.iter}; ' + message
             loss_log.write(log_message+'\n')
             loss_log.flush()
 

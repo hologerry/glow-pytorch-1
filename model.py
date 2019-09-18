@@ -1,9 +1,10 @@
+from math import log, pi
+
+import numpy as np
 import torch
+from scipy import linalg as la
 from torch import nn
 from torch.nn import functional as F
-from math import log, pi
-import numpy as np
-from scipy import linalg as la
 
 
 def logabs(x):

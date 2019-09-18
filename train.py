@@ -1,12 +1,13 @@
-from tqdm import tqdm
-from math import log
-
 import argparse
+import datetime
+import os
+from math import log
 
 import torch
 from torch import nn, optim
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms, utils
+from tqdm import tqdm
 
 from model import Glow
 
@@ -14,6 +15,8 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 parser = argparse.ArgumentParser(description='Glow trainer')
 parser.add_argument('--batch', default=32, type=int, help='batch size')
+parser.add_argument('--resume', default=False, type=bool, help='resume training')
+parser.add_argument('--resume_exp', default=None, type=str, help='resume experiment log dir')
 parser.add_argument('--iter', default=200000, type=int, help='maximum iterations')
 parser.add_argument(
     '--n_flow', default=32, type=int, help='number of flows in each block'
@@ -29,10 +32,15 @@ parser.add_argument(
 )
 parser.add_argument('--n_bits', default=5, type=int, help='number of bits')
 parser.add_argument('--lr', default=1e-5, type=float, help='learning rate')
+parser.add_argument('--warm', default=False, type=bool, help="whether or not warmup learning rate")
 parser.add_argument('--img_size', default=64, type=int, help='image size')
 parser.add_argument('--temp', default=0.7, type=float, help='temperature of sampling')
-parser.add_argument('--n_sample', default=20, type=int, help='number of samples')
-parser.add_argument('path', metavar='PATH', type=str, help='Path to image directory')
+parser.add_argument('--n_sample', default=32, type=int, help='number of samples')
+parser.add_argument('--sample_freq', default=100, type=int, help='interval of sample and reverse')
+parser.add_argument('--check_freq', default=1000, type=int, help='interval of save checkpoints')
+parser.add_argument('--experiment_dir', default='experiment', type=str,
+                    help="experiments directory save the samples and checkpoint")
+parser.add_argument('path', metavar='PATH', type=str, required=True, help='Path to image directory')
 
 
 def sample_data(path, batch_size, image_size):
@@ -92,14 +100,28 @@ def calc_loss(log_p, logdet, image_size, n_bins):
 
 
 def train(args, model, optimizer):
+    # setup log dir
+    date = str(datetime.datetime.now())
+    date = date[:date.rfind(":")].replace("-", "").replace(":", "").replace(" ", "_")
+    log_dir = os.path.join(args.experiment_dir, "exp_"+date)
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+
+    # dump args
+    with open(os.path.join(log_dir, 'opts.txt'), 'w') as f:
+        for key, value in vars(args).items():
+            f.write(key+"\t"+value+'\n')
+
     dataset = iter(sample_data(args.path, args.batch, args.img_size))
     n_bins = 2. ** args.n_bits
 
-    z_sample = []
-    z_shapes = calc_z_shapes(3, args.img_size, args.n_flow, args.n_block)
-    for z in z_shapes:
-        z_new = torch.randn(args.n_sample, *z) * args.temp
-        z_sample.append(z_new.to(device))
+    # resume training
+    if args.resume and args.resume_exp is not None:
+        assert os.path.exists(os.path.join(args.experiment_dir, args.resume_exp)), args.resume_exp + " does not exist"
+        latest_model = os.path.join(args.experiment_dir, args.resume_exp, 'checkpoint', 'model_latest.pt')
+        latest_optimizer = os.path.join(args.experiment_dir, args.resume_exp, 'checkpoint', 'optimizer_latest.pt')
+        model = model.load_state_dict(torch.load(latest_model))
+        optimizer = optimizer.load_state_dict(torch.load(latest_optimizer))
 
     with tqdm(range(args.iter)) as pbar:
         for i in pbar:
@@ -120,38 +142,56 @@ def train(args, model, optimizer):
             loss, log_p, log_det = calc_loss(log_p, logdet, args.img_size, n_bins)
             model.zero_grad()
             loss.backward()
-            # warmup_lr = args.lr * min(1, i * batch_size / (50000 * 10))
-            warmup_lr = args.lr
+
+            if args.warm:
+                warmup_lr = args.lr * min(1, i * args.batch_size / (50000 * 10))
+            else:
+                warmup_lr = args.lr
             optimizer.param_groups[0]['lr'] = warmup_lr
+
             optimizer.step()
 
             pbar.set_description(
                 f'Loss: {loss.item():.5f}; logP: {log_p.item():.5f}; logdet: {log_det.item():.5f}; lr: {warmup_lr:.7f}'
             )
 
-            if i % 100 == 0:
+            if i % args.sample_freq == 0:
                 with torch.no_grad():
+                    z_sample = []
+                    z_shapes = calc_z_shapes(3, args.img_size, args.n_flow, args.n_block)
+                    for z in z_shapes:
+                        z_new = torch.randn(args.n_sample, *z) * args.temp
+                        z_sample.append(z_new.to(device))
+
+                    # sample
                     utils.save_image(
                         model_single.reverse(z_sample).cpu().data,
-                        f'mcgan_B_sample/{str(i).zfill(6)}.png',
+                        os.path.join(log_dir, 'sample', f'{str(i).zfill(6)}.png'),
                         normalize=True,
-                        nrow=10,
+                        nrow=args.n_sample//4,
                         range=(-0.5, 0.5),
                     )
+                    # reconstruct
                     utils.save_image(
                         model_single.reverse(z_encode).cpu().data,
-                        f'mcgan_B_sample/reverse_{str(i).zfill(6)}.png',
+                        os.path.join(log_dir, 'sample', f'{str(i).zfill(6)}_reverse.png'),
                         normalize=True,
-                        nrow=8,
+                        nrow=args.batch_size//4,
                         range=(-0.5, 0.5),
                     )
 
-            if i % 10000 == 0:
+            if i % args.check_freq == 0:
                 torch.save(
-                    model.state_dict(), f'mcgan_B_checkpoint/model_{str(i).zfill(6)}.pt'
+                    model.state_dict(), os.path.join(log_dir, 'checkpoint', f'model_{str(i).zfill(6)}.pt')
                 )
                 torch.save(
-                    optimizer.state_dict(), f'mcgan_B_checkpoint/optim_{str(i).zfill(6)}.pt'
+                    model.state_dict(), os.path.join(log_dir, 'checkpoint', 'model_latest.pt')
+                )
+                torch.save(
+                    optimizer.state_dict(), os.path.join(log_dir, 'checkpoint', f'optimizer_{str(i).zfill(6)}.pt')
+                )
+                torch.save(
+                    optimizer.state_dict(), os.path.join(log_dir, 'checkpoint', 'optimizer_latest.pt')
                 )
 
 

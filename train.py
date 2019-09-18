@@ -157,7 +157,7 @@ def train(args, model, optimizer):
             loss.backward()
 
             if args.warm:
-                warmup_lr = args.lr * min(1, i * args.batch_size / (50000 * 10))
+                warmup_lr = args.lr * min(1, i * args.batch / (50000 * 10))
             else:
                 warmup_lr = args.lr
             optimizer.param_groups[0]['lr'] = warmup_lr

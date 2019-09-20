@@ -209,6 +209,14 @@ def train(args, model, optimizer):
                         nrow=args.batch//4,
                         range=(-0.5, 0.5),
                     )
+                    # ground truth
+                    utils.save_image(
+                        image.cpu().data,
+                        os.path.join(log_dir, 'sample', f'{str(i).zfill(6)}_ground-truth.png'),
+                        normalize=True,
+                        nrow=args.batch//4,
+                        range=(-0.5, 0.5),
+                    )
 
             # save checkpoint
             if i % args.check_freq == 0:

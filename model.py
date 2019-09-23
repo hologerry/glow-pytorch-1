@@ -23,8 +23,7 @@ class ActNorm(nn.Module):
 
     def initialize(self, input):
         with torch.no_grad():
-            flatten = input.permute(
-                1, 0, 2, 3).contiguous().view(input.shape[1], -1)
+            flatten = input.permute(1, 0, 2, 3).contiguous().view(input.shape[1], -1)
             mean = (
                 flatten.mean(1)
                 .unsqueeze(1)
@@ -128,7 +127,9 @@ class InvConv2dLU(nn.Module):
 
     def calc_weight(self):
         weight = (
-            self.w_p @ (self.w_l * self.l_mask + self.l_eye) @ ((self.w_u * self.u_mask) + torch.diag(self.s_sign * torch.exp(self.w_s)))  # noqa
+            self.w_p @
+            (self.w_l * self.l_mask + self.l_eye) @
+            ((self.w_u * self.u_mask) + torch.diag(self.s_sign * torch.exp(self.w_s)))
         )
 
         return weight.unsqueeze(2).unsqueeze(3)
@@ -167,8 +168,7 @@ class AffineCoupling(nn.Module):
             nn.ReLU(inplace=True),
             nn.Conv2d(filter_size, filter_size, 1),
             nn.ReLU(inplace=True),
-            ZeroConv2d(
-                filter_size, in_channel if self.affine else in_channel // 2),
+            ZeroConv2d(filter_size, in_channel if self.affine else in_channel // 2),
         )
 
         self.net[0].weight.data.normal_(0, 0.05)
@@ -262,8 +262,7 @@ class Block(nn.Module):
 
         self.flows = nn.ModuleList()
         for i in range(n_flow):
-            self.flows.append(
-                Flow(squeeze_dim, affine=affine, conv_lu=conv_lu))
+            self.flows.append(Flow(squeeze_dim, affine=affine, conv_lu=conv_lu))
 
         self.split = split
 
@@ -344,11 +343,9 @@ class Glow(nn.Module):
         self.blocks = nn.ModuleList()
         n_channel = in_channel
         for i in range(n_block - 1):
-            self.blocks.append(
-                Block(n_channel, n_flow, affine=affine, conv_lu=conv_lu))
+            self.blocks.append(Block(n_channel, n_flow, affine=affine, conv_lu=conv_lu))
             n_channel *= 2
-        self.blocks.append(
-            Block(n_channel, n_flow, split=False, affine=affine))
+        self.blocks.append(Block(n_channel, n_flow, split=False, affine=affine))
 
     def forward(self, input):
         log_p_sum = 0
@@ -369,11 +366,9 @@ class Glow(nn.Module):
     def reverse(self, z_list, reconstruct=False):
         for i, block in enumerate(self.blocks[::-1]):
             if i == 0:
-                input = block.reverse(
-                    z_list[-1], z_list[-1], reconstruct=reconstruct)
+                input = block.reverse(z_list[-1], z_list[-1], reconstruct=reconstruct)
 
             else:
-                input = block.reverse(
-                    input, z_list[-(i + 1)], reconstruct=reconstruct)
+                input = block.reverse(input, z_list[-(i + 1)], reconstruct=reconstruct)
 
         return input

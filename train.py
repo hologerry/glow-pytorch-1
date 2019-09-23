@@ -18,18 +18,11 @@ parser.add_argument('--batch', default=32, type=int, help='batch size')
 parser.add_argument('--resume', default=False, type=bool, help='resume training')
 parser.add_argument('--resume_exp', default=None, type=str, help='resume experiment log dir')
 parser.add_argument('--iter', default=200000, type=int, help='maximum iterations')
-parser.add_argument(
-    '--n_flow', default=32, type=int, help='number of flows in each block'
-)
+parser.add_argument('--n_flow', default=32, type=int, help='number of flows in each block')
 parser.add_argument('--n_block', default=4, type=int, help='number of blocks')
-parser.add_argument(
-    '--no_lu',
-    action='store_true',
-    help='use plain convolution instead of LU decomposed version',
-)
-parser.add_argument(
-    '--affine', action='store_true', help='use affine coupling instead of additive'
-)
+parser.add_argument('--no_lu', action='store_true',
+                    help='use plain convolution instead of LU decomposed version',)
+parser.add_argument('--affine', action='store_true', help='use affine coupling instead of additive')
 parser.add_argument('--n_bits', default=5, type=int, help='number of bits')
 parser.add_argument('--lr', default=1e-5, type=float, help='learning rate')
 parser.add_argument('--warm', default=False, type=bool, help="whether or not warmup learning rate")
@@ -54,6 +47,7 @@ def sample_data(path, batch_size, image_size):
         ]
     )
 
+    # TODO: customize dataset
     dataset = datasets.ImageFolder(path, transform=transform)
     loader = DataLoader(dataset, shuffle=True, batch_size=batch_size, num_workers=4)
     loader = iter(loader)

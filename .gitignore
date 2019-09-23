@@ -107,6 +107,6 @@ venv.bak/
 celeba*
 explo*
 mcgan*
-sample/*
-checkpoint/*
-experiment/*
+sample*
+checkpoint*
+experiment*

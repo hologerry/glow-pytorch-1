@@ -98,6 +98,7 @@ def train(args, model, optimizer):
     date = str(datetime.datetime.now())
     date = date[:date.rfind(":")].replace("-", "").replace(":", "").replace(" ", "_")
     log_dir = os.path.join(args.experiment_dir, "exp_"+date)
+
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
     if not os.path.exists(os.path.join(log_dir, "sample")):
@@ -197,7 +198,7 @@ def train(args, model, optimizer):
                     )
                     # reconstruct
                     utils.save_image(
-                        model_single.reverse(z_encode).cpu().data,
+                        model_single.reverse(z_encode, reconstruct=True).cpu().data,
                         os.path.join(log_dir, 'sample', f'{str(i).zfill(6)}_reverse.png'),
                         normalize=True,
                         nrow=args.batch//4,

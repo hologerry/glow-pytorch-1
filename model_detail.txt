@@ -1,0 +1,36 @@
+# glow output
+log_p size: torch.Size([32])
+logdet size: torch.Size([2])
+z encode # 0 size torch.Size([32, 6, 32, 32])
+z encode # 1 size torch.Size([32, 12, 16, 16])
+z encode # 2 size torch.Size([32, 24, 8, 8])
+z encode # 3 size torch.Size([32, 96, 4, 4])
+
+# block inchannel
+block # 0 n_channel 3
+block # 1 n_channel 6
+block # 2 n_channel 12
+block # 3 n_channel 24
+
+# block output
+block # output 0 out size torch.Size([16, 6, 32, 32])
+block # output 0 det size torch.Size([])
+block # output 0 log_p size torch.Size([16])
+block # output 0 z_new torch.Size([16, 6, 32, 32])
+
+block # 1 output out size torch.Size([16, 12, 16, 16])
+block # 1 output det size torch.Size([])
+block # 1 output log_p size torch.Size([16])
+block # 1 output z_new torch.Size([16, 12, 16, 16])
+
+block # 2 output out size torch.Size([16, 24, 8, 8])
+block # 2 output det size torch.Size([])
+block # 2 output log_p size torch.Size([16])
+block # 2 output z_new torch.Size([16, 24, 8, 8])
+
+block # output 3 out size torch.Size([16, 96, 4, 4])
+block # output 3 det size torch.Size([])
+block # output 3 log_p size torch.Size([16])
+block # output 3 z_new torch.Size([16, 96, 4, 4])
+
+last block output channel are multplied by 4 due to the "split == False"

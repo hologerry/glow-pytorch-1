@@ -180,14 +180,6 @@ def train(args, model, optimizer):
                         z_new = torch.randn(args.n_sample, *z) * args.temp
                         z_sample.append(z_new.to(device))
 
-                    # sample
-                    utils.save_image(
-                        model_single.reverse(z_sample).cpu().data,
-                        os.path.join(log_dir, 'sample', f'{str(i).zfill(6)}.png'),
-                        normalize=True,
-                        nrow=args.n_sample//4,
-                        range=(-0.5, 0.5),
-                    )
                     # sample at first
                     utils.save_image(
                         model_single.reverse(z_sample_first).cpu().data,
@@ -196,10 +188,26 @@ def train(args, model, optimizer):
                         nrow=args.n_sample//4,
                         range=(-0.5, 0.5),
                     )
+                    # sample
+                    utils.save_image(
+                        model_single.reverse(z_sample).cpu().data,
+                        os.path.join(log_dir, 'sample', f'{str(i).zfill(6)}_sample.png'),
+                        normalize=True,
+                        nrow=args.n_sample//4,
+                        range=(-0.5, 0.5),
+                    )
+                    # reverse
+                    utils.save_image(
+                        model_single.reverse(z_sample, reconstruct=True).cpu().data,
+                        os.path.join(log_dir, 'sample', f'{str(i).zfill(6)}_sample_reconstruct.png'),
+                        normalize=True,
+                        nrow=args.batch//4,
+                        range=(-0.5, 0.5),
+                    )
                     # reconstruct
                     utils.save_image(
                         model_single.reverse(z_encode, reconstruct=True).cpu().data,
-                        os.path.join(log_dir, 'sample', f'{str(i).zfill(6)}_reverse.png'),
+                        os.path.join(log_dir, 'sample', f'{str(i).zfill(6)}_reconstruct.png'),
                         normalize=True,
                         nrow=args.batch//4,
                         range=(-0.5, 0.5),

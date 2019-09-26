@@ -6,14 +6,17 @@ from math import log
 import torch
 from torch import nn, optim
 from torch.utils.data import DataLoader
-from torchvision import datasets, transforms, utils
+from torchvision import utils
 from tqdm import tqdm
 
-from model import Glow
+from data.explo import ExploDataset
+from model import Glow, Pix2PixGlow
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 parser = argparse.ArgumentParser(description='Glow trainer')
+parser.add_argument('--model', default='pix2pixglow', type=str, choices=['glow', 'pix2pixglow'],
+                    help='which type of model')
 parser.add_argument('--batch', default=32, type=int, help='batch size')
 parser.add_argument('--resume', default=False, type=bool, help='resume training')
 parser.add_argument('--resume_exp', default=None, type=str, help='resume experiment log dir')
@@ -29,27 +32,16 @@ parser.add_argument('--warm', default=False, type=bool, help="whether or not war
 parser.add_argument('--img_size', default=64, type=int, help='image size')
 parser.add_argument('--temp', default=0.7, type=float, help='temperature of sampling')
 parser.add_argument('--n_sample', default=32, type=int, help='number of samples')
-parser.add_argument('--sample_freq', default=100, type=int, help='interval of sample and reverse')
-parser.add_argument('--check_freq', default=1000, type=int, help='interval of save checkpoints')
+parser.add_argument('--sample_freq', default=500, type=int, help='interval of sample and reverse')
+parser.add_argument('--check_freq', default=2000, type=int, help='interval of save checkpoints')
 parser.add_argument('--experiment_dir', default='experiment', type=str,
                     help="experiments directory save the samples and checkpoint")
 parser.add_argument('path', metavar='PATH', type=str, help='Path to image(dataset) directory')
 
 
 def sample_data(path, batch_size, image_size):
-    transform = transforms.Compose(
-        [
-            transforms.Resize(image_size),
-            # transforms.CenterCrop(image_size),
-            # transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (1, 1, 1)),
-        ]
-    )
-
-    # TODO: customize dataset
-    dataset = datasets.ImageFolder(path, transform=transform)
-    loader = DataLoader(dataset, shuffle=True, batch_size=batch_size, num_workers=4)
+    dataset = ExploDataset(path)
+    loader = DataLoader(dataset, shuffle=True, batch_size=batch_size, num_workers=batch_size//2)
     loader = iter(loader)
 
     while True:
@@ -58,7 +50,7 @@ def sample_data(path, batch_size, image_size):
 
         except StopIteration:
             loader = DataLoader(
-                dataset, shuffle=True, batch_size=batch_size, num_workers=4
+                dataset, shuffle=True, batch_size=batch_size, num_workers=batch_size//2
             )
             loader = iter(loader)
             yield next(loader)
@@ -147,6 +139,9 @@ def train(args, model, optimizer):
                     continue
 
             else:
+                # log_p size: [batch_size]
+                # logdet size: [gpu_num]
+                # z_encode: list, len = n_block, refer to cal_z_shapes
                 log_p, logdet, z_encode = model(image + torch.rand_like(image) / n_bins)
 
             logdet = logdet.mean()
@@ -241,9 +236,18 @@ if __name__ == '__main__':
     args = parser.parse_args()
     print(args)
 
-    model_single = Glow(
-        3, args.n_flow, args.n_block, affine=args.affine, conv_lu=not args.no_lu
-    )
+    if args.model == 'pix2pixglow':
+        model_single = Pix2PixGlow(
+            3, args.n_flow, args.n_block, affine=args.affine, conv_lu=not args.no_lu
+        )
+
+    elif args.model == 'glow':
+        model_single = Glow(
+            3, args.n_flow, args.n_block, affine=args.affine, conv_lu=not args.no_lu
+        )
+    else:
+        raise NotImplementedError
+
     model = nn.DataParallel(model_single)
     # model = model_single
     model = model.to(device)

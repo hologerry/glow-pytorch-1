@@ -372,3 +372,70 @@ class Glow(nn.Module):
                 input = block.reverse(input, z_list[-(i + 1)], reconstruct=reconstruct)
 
         return input
+
+
+class Pix2PixGlow(nn.Module):
+    def __init__(self, in_channel, n_flow, n_block, affine=True, conv_lu=True):
+        super().__init__()
+
+        # A flow
+        self.blocks_A = nn.ModuleList()
+        n_channel = in_channel
+        for i in range(n_block - 1):
+            self.blocks_A.append(Block(n_channel, n_flow, affine=affine, conv_lu=conv_lu))
+            n_channel *= 2
+        self.blocks_A.append(Block(n_channel, n_flow, split=False, affine=affine))
+
+        # B flow
+        self.blocks_B = nn.ModuleList()
+        n_channel = in_channel
+        for i in range(n_block - 1):
+            self.blocks_B.append(Block(n_channel, n_flow, affine=affine, conv_lu=conv_lu))
+            n_channel *= 2
+        self.blocks_B.append(Block(n_channel, n_flow, split=False, affine=affine))
+
+    def forward(self, input_A, input_B):
+        log_p_sum_A = 0
+        logdet_A = 0
+        out_A = input_A
+        z_outs_A = []
+
+        for block_A in self.blocks_A:
+            out_A, det_A, log_p_A, z_new_A = block_A(out_A)
+            z_outs_A.append(z_new_A)
+            logdet_A = logdet_A + det_A
+
+            if log_p_A is not None:
+                log_p_sum_A = log_p_sum_A + log_p_A
+
+        log_p_sum_B = 0
+        logdet_B = 0
+        out_B = input_B
+        z_outs_B = []
+
+        for block_B in self.blocks_B:
+            out_B, det_B, log_p_B, z_new_B = block_B(out_B)
+            z_outs_B.append(z_new_B)
+            logdet_B = logdet_B + det_B
+
+            if log_p_B is not None:
+                log_p_sum_B = log_p_sum_B + log_p_B
+
+        return log_p_sum_A, logdet_A, z_outs_A, log_p_sum_B, logdet_B, z_outs_B
+
+    def reverse(self, z_list, reconstruct=False):
+        for i, block_A in enumerate(self.blocks_A[::-1]):
+            if i == 0:
+                input_A = block_A.reverse(z_list[-1], z_list[-1], reconstruct=reconstruct)
+
+            else:
+                input_A = block_A.reverse(input_A, z_list[-(i + 1)], reconstruct=reconstruct)
+
+        for i, block_B in enumerate(self.blocks_B[::-1]):
+            if i == 0:
+                input_B = block_B.reverse(z_list[-1], z_list[-1], reconstruct=reconstruct)
+
+            else:
+                input_B = block_B.reverse(input_B, z_list[-(i + 1)], reconstruct=reconstruct)
+
+        return input_A, input_B

@@ -17,9 +17,7 @@ class ExploDataset(Dataset):
         assert os.path.isdir(root_dir), f"explo dataset {root_dir} does not exist"
         self.root_dir = root_dir
 
-        self.phase_dir = os.path.join(self.root_dir, phase)
         self.base_dir = os.path.join(self.root_dir, 'base')
-        assert os.path.exists(self.phase_dir), f"explo dataset {self.phase_dir} does not exist"
         assert os.path.exists(self.base_dir), f"explo dataset {self.base_dir} does not exist"
 
         self.datas = find_images_and_annotation(self.root_dir, "attributes.txt")

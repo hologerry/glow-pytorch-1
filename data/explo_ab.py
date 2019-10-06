@@ -1,4 +1,5 @@
 import os
+import random
 
 import torch
 from PIL import Image
@@ -8,19 +9,15 @@ from torchvision import transforms
 from .base import find_images_and_annotation
 
 
-class ExploDataset(Dataset):
+class ExploABDataset(Dataset):
     def __init__(self, root_dir, image_size=64, phase='train'):
         super().__init__()
 
         assert phase in ['train', 'test'], NotImplementedError
+        self.phase = phase
 
-        assert os.path.isdir(root_dir), f"explo dataset {root_dir} does not exist"
+        assert os.path.isdir(root_dir), f"{root_dir} does not exist"
         self.root_dir = root_dir
-
-        self.phase_dir = os.path.join(self.root_dir, phase)
-        self.base_dir = os.path.join(self.root_dir, 'base')
-        assert os.path.exists(self.phase_dir), f"explo dataset {self.phase_dir} does not exist"
-        assert os.path.exists(self.base_dir), f"explo dataset {self.base_dir} does not exist"
 
         self.datas = find_images_and_annotation(self.root_dir, "attributes.txt")
         self.dataset_size = len(self.datas)
@@ -40,20 +37,28 @@ class ExploDataset(Dataset):
 
     def __getitem__(self, index):
         dataset = self.train_set if self.phase == 'train' else self.test_set
-        data = dataset[index]
+        data_A = dataset[index]
+        data_B = dataset[(index + 52 * random.randint(0, 148)) % self.num_images]
 
-        base = self.transform(Image.open(data['base']).convert('RGB'))
-        image = self.transform(Image.open(data['image']).convert('RGB'))
-        font = torch.LongTensor(data['font'])
-        char = torch.LongTensor(data['char'])
-        attr = torch.FloatTensor(data['attr'])
+        image_A = self.transform(Image.open(data_A['image']).convert('RGB'))
+        font_A = torch.LongTensor(data_A['font'])
+        char_A = torch.LongTensor(data_A['char'])
+        attr_A = torch.FloatTensor(data_A['attr'])
+
+        image_B = self.transform(Image.open(data_B['image']).convert('RGB'))
+        font_B = torch.LongTensor(data_B['font'])
+        char_B = torch.LongTensor(data_B['char'])
+        attr_B = torch.FloatTensor(data_B['attr'])
 
         return {
-            'base': base,
-            'image': image,
-            'font': font,
-            'char': char,
-            'attr': attr,
+            'img_A': image_A,
+            'font_A': font_A,
+            'char_A': char_A,
+            'attr_A': attr_A,
+            'img_B': image_B,
+            'font_B': font_B,
+            'char_B': char_B,
+            'attr_B': attr_B,
         }
 
     def __len__(self):

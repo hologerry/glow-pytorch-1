@@ -10,7 +10,7 @@ from torchvision import utils
 from tqdm import tqdm
 
 from data.explo import ExploDataset
-from model import Glow, Pix2PixGlow
+from model import Glow, Pix2PixGlow, Encoder
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -85,7 +85,32 @@ def calc_loss(log_p, logdet, image_size, n_bins):
     )
 
 
-def train(args, model, optimizer):
+def calc_loss_triple(log_p_c, logdet_c, z_c,
+                     log_p_t, logdet_t, z_t,
+                     z_s, z_criterion, n_z,
+                     image_size, n_bins):
+    n_pixel = image_size * image_size * 3
+
+    loss = -log(n_bins) * n_pixel
+    loss = loss + logdet_c + log_p_c + logdet_t + log_p_t
+    z_loss = 0.0
+    # last n_z z s to calculate loss
+    for i in range(n_z):
+        z_cs = z_c[-(1+i)] + z_s[-(1+i)]
+        z_loss = z_loss + z_criterion(z_cs, z_t[-(1+i)])
+    loss = -loss / (log(2) * n_pixel) + 0.1 * z_loss
+
+    return (
+        loss.mean(),
+        z_loss.mean(),
+        (log_p_c / (log(2) * n_pixel)).mean(),
+        (logdet_c / (log(2) * n_pixel)).mean(),
+        (log_p_t / (log(2) * n_pixel)).mean(),
+        (logdet_t / (log(2) * n_pixel)).mean(),
+    )
+
+
+def train(args, model, encoder, optimizer, z_criterion):
     # setup log dir
     date = str(datetime.datetime.now())
     date = date[:date.rfind(":")].replace("-", "").replace(":", "").replace(" ", "_")
@@ -129,12 +154,20 @@ def train(args, model, optimizer):
 
     with tqdm(range(args.iter)) as pbar:
         for i in pbar:
-            image, _ = next(dataset)
-            image = image.to(device)
+            data = next(dataset)
+            base = data['base'].to(device)
+            image = data['image'].to(device)
+            # font = data['font'].to(device)
+            # char = data['char'].to(device)
+            attr = data['attr'].to(device)
+            noise = torch.randn((image.size(0), 8))
+            attr = torch.cat([attr, noise], dim=1)
 
             if i == 0:
                 with torch.no_grad():
-                    log_p, logdet, _ = model.module(image + torch.rand_like(image) / n_bins)
+                    # log_p, logdet, _ = model.module(image + torch.rand_like(image) / n_bins)
+                    model.module(base, image)
+                    encoder.module(attr)
 
                     continue
 
@@ -142,11 +175,19 @@ def train(args, model, optimizer):
                 # log_p size: [batch_size]
                 # logdet size: [gpu_num]
                 # z_encode: list, len = n_block, refer to cal_z_shapes
-                log_p, logdet, z_encode = model(image + torch.rand_like(image) / n_bins)
+                # log_p, logdet, z_encode = model(image + torch.rand_like(image) / n_bins)
+                log_p_c, logdet_c, z_encode_c, log_p_t, logdet_t, z_encode_t = model(base, image)
+                z_s = encoder(attr)
 
-            logdet = logdet.mean()
+            logdet_c = logdet_c.mean()
+            logdet_t = logdet_t.mean()
 
-            loss, log_p, log_det = calc_loss(log_p, logdet, args.img_size, n_bins)
+            # loss, log_p, log_det = calc_loss(log_p, logdet, args.img_size, n_bins)
+            loss, z_loss, log_p_c, log_det_c, log_p_t, log_det_t = \
+                calc_loss_triple(log_p_c, logdet_c, z_encode_c,
+                                 log_p_t, logdet_t, z_encode_t,
+                                 z_s, z_criterion, 2,
+                                 args.img_size, n_bins)
             model.zero_grad()
             loss.backward()
 
@@ -160,8 +201,10 @@ def train(args, model, optimizer):
 
             # log loss
             message = (
-                f'Loss: {loss.item():.5f}; logP: {log_p.item():.5f}; '
-                f'logdet: {log_det.item():.5f}; lr: {warmup_lr:.7f}'
+                f'Loss: {loss.item():.5f}; '
+                f'logP_c: {log_p_c.item():.5f}; logdet_c: {log_det_c.item():.5f}; '
+                f'logP_t: {log_p_t.item():.5f}; logdet_t: {log_det_t.item():.5f}; '
+                f'lr: {warmup_lr:.7f}'
             )
             pbar.set_description(message)
             log_message = f'Step: {i}/{args.iter}; ' + message
@@ -175,9 +218,10 @@ def train(args, model, optimizer):
                         z_new = torch.randn(args.n_sample, *z) * args.temp
                         z_sample.append(z_new.to(device))
 
+                    # TODO: sample
                     # sample at first
                     utils.save_image(
-                        model_single.reverse(z_sample_first).cpu().data,
+                        model_single.reverse(z_sample_first, z_sample_first)[1].cpu().data,
                         os.path.join(log_dir, 'sample', f'{str(i).zfill(6)}_first.png'),
                         normalize=True,
                         nrow=args.n_sample//4,
@@ -185,7 +229,7 @@ def train(args, model, optimizer):
                     )
                     # sample
                     utils.save_image(
-                        model_single.reverse(z_sample).cpu().data,
+                        model_single.reverse(z_sample, z_sample)[1].cpu().data,
                         os.path.join(log_dir, 'sample', f'{str(i).zfill(6)}_sample.png'),
                         normalize=True,
                         nrow=args.n_sample//4,
@@ -193,7 +237,7 @@ def train(args, model, optimizer):
                     )
                     # reverse
                     utils.save_image(
-                        model_single.reverse(z_sample, reconstruct=True).cpu().data,
+                        model_single.reverse(z_sample, z_sample, reconstruct=True)[1].cpu().data,
                         os.path.join(log_dir, 'sample', f'{str(i).zfill(6)}_sample_reconstruct.png'),
                         normalize=True,
                         nrow=args.batch//4,
@@ -201,7 +245,7 @@ def train(args, model, optimizer):
                     )
                     # reconstruct
                     utils.save_image(
-                        model_single.reverse(z_encode, reconstruct=True).cpu().data,
+                        model_single.reverse(z_encode_c, z_encode_t, reconstruct=True)[1].cpu().data,
                         os.path.join(log_dir, 'sample', f'{str(i).zfill(6)}_reconstruct.png'),
                         normalize=True,
                         nrow=args.batch//4,
@@ -252,6 +296,11 @@ if __name__ == '__main__':
     # model = model_single
     model = model.to(device)
 
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    encoder_single = Encoder(37)
+    encoder = nn.DataParallel(encoder_single)
+    encoder = encoder.to(device)
 
-    train(args, model, optimizer)
+    optimizer = optim.Adam(model.parameters()+encoder.parameters(), lr=args.lr)
+
+    z_criterion = nn.MSELoss()
+    train(args, model, encoder, optimizer)

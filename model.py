@@ -439,3 +439,31 @@ class Pix2PixGlow(nn.Module):
                 input_B = block_B.reverse(input_B, z_list[-(i + 1)], reconstruct=reconstruct)
 
         return input_A, input_B
+
+
+class Encoder(nn.Module):
+    def __init__(self, attr_channel, unsuper_attr_channel=0, noise_channel=8):
+        super().__init__()
+        self.fc = nn.Linear(attr_channel+unsuper_attr_channel+noise_channel, 128)
+        self.up1 = nn.Sequential(
+            nn.ConvTranspose2d(128, 128, 4, 2, 1, bias=True),
+            nn.InstanceNorm2d(128),
+            nn.ReLU()
+        )
+        self.up2 = nn.Sequential(
+            nn.ConvTranspose2d(128, 512, 4, 2, 1, bias=True),
+            nn.InstanceNorm2d(512),
+            nn.ReLU()
+        )
+        self.conv = nn.Sequential(
+            nn.Conv2d(512, 96, 3),
+            nn.InstanceNorm2d(512),
+            nn.Tanh()
+        )
+
+    def __forward__(self, attr_input):
+        out = self.fc(attr_input)
+        out = out.unsqueeze(2).unsqueeze(3)
+        out = self.up1(out)
+        out = self.up2(out)
+        out = self.conv(out)

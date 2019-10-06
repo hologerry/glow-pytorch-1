@@ -106,3 +106,8 @@ venv.bak/
 # custom
 datasets/
 experiment/*
+
+old_logs/
+celeba/*
+mcgan*
+explo*

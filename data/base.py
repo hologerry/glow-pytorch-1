@@ -63,20 +63,17 @@ def find_images_and_annotation(root_dir, attr_anno_file, base_dir=None):
     return datas
 
 
-def make_dataset_base_image_attr(base_dir, image_dir, attr_anno_file):
+def make_dataset_base_image_attr(root_dir, base_dir, images_dir, attr_anno_file):
     base_imgs = sorted(make_dataset(base_dir))
     images = {}
-    attr_file = None
-    assert os.path.isdir(base_dir), f"{base_dir} does not exist"
-    for root, _, fnames in sorted(os.walk(base_dir)):
+    for root, _, fnames in sorted(os.walk(images_dir)):
         for fname in sorted(fnames):
             if is_image_file(fname):
                 path = os.path.join(root, fname)
                 images[os.path.splitext(fname)[0]] = path
-            elif fname.lower() == attr_anno_file:
-                attr_file = os.path.join(root, fname)
 
-        assert attr_file is not None, f"Failed to find {attr_anno_file}"
+    attr_file = os.path.join(root_dir, attr_anno_file)
+    assert attr_file is not None, f"Failed to find {attr_anno_file}"
 
     # parse all image
     print("Parsing all images and their attributes...")
@@ -89,7 +86,7 @@ def make_dataset_base_image_attr(base_dir, image_dir, attr_anno_file):
             line = line.strip()
             line = line.split("  ")
             fname = os.path.splitext(line[0])[0]
-            font = idx // 52
+            font = int(idx / 52)
             char = int(fname.split('_')[1].split('.')[0])
             base_img = base_imgs[char]
             attr_vals = [(float(v)/100.0) for v in line[1:]]

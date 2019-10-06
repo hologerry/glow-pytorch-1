@@ -13,6 +13,7 @@ class ExploDataset(Dataset):
         super().__init__()
 
         assert phase in ['train', 'test'], NotImplementedError
+        self.phase = phase
 
         assert os.path.isdir(root_dir), f"explo dataset {root_dir} does not exist"
         self.root_dir = root_dir
@@ -20,11 +21,14 @@ class ExploDataset(Dataset):
         self.base_dir = os.path.join(self.root_dir, 'base')
         assert os.path.exists(self.base_dir), f"explo dataset {self.base_dir} does not exist"
 
-        self.datas = make_dataset_base_image_attr(self.base_dir, self.root_dir, "attributes.txt")
+        self.images_dir = os.path.join(self.root_dir, 'images')
+        assert os.path.exists(self.images_dir), f"explo dataset {self.images_dir} does not exist"
+
+        self.datas = make_dataset_base_image_attr(self.root_dir, self.base_dir, self.images_dir, "attributes.txt")
         self.dataset_size = len(self.datas)
         self.train_size = 52 * 120  # train_char * train_font
         self.train_set = self.datas[:self.train_size]
-        self.test_set = self.datas[self.train_set:]
+        self.test_set = self.datas[self.train_size:]
 
         self.num_images = len(self.train_set) if self.phase == 'train' else len(self.test_set)
 
@@ -42,8 +46,8 @@ class ExploDataset(Dataset):
 
         base = self.transform(Image.open(data['base']).convert('RGB'))
         image = self.transform(Image.open(data['image']).convert('RGB'))
-        font = torch.LongTensor(data['font'])
-        char = torch.LongTensor(data['char'])
+        font = torch.LongTensor([data['font']])
+        char = torch.LongTensor([data['char']])
         attr = torch.FloatTensor(data['attr'])
 
         return {

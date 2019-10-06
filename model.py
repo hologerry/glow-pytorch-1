@@ -456,14 +456,15 @@ class Encoder(nn.Module):
             nn.ReLU()
         )
         self.conv = nn.Sequential(
-            nn.Conv2d(512, 96, 3),
+            nn.Conv2d(512, 96, 1),
             nn.InstanceNorm2d(512),
             nn.Tanh()
         )
 
-    def __forward__(self, attr_input):
+    def forward(self, attr_input):
         out = self.fc(attr_input)
         out = out.unsqueeze(2).unsqueeze(3)
         out = self.up1(out)
         out = self.up2(out)
         out = self.conv(out)
+        return out

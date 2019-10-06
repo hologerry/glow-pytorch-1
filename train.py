@@ -95,9 +95,10 @@ def calc_loss_triple(log_p_c, logdet_c, z_c,
     loss = loss + logdet_c + log_p_c + logdet_t + log_p_t
     z_loss = 0.0
     # last n_z z s to calculate loss
-    for i in range(n_z):
-        z_cs = z_c[-(1+i)] + z_s[-(1+i)]
-        z_loss = z_loss + z_criterion(z_cs, z_t[-(1+i)])
+    # currently, only support 1
+    assert n_z == 1, NotImplementedError
+    z_cs = z_c[-1] + z_s
+    z_loss = z_loss + z_criterion(z_cs, z_t[-1])
     loss = -loss / (log(2) * n_pixel) + 0.1 * z_loss
 
     return (
@@ -160,7 +161,7 @@ def train(args, model, encoder, optimizer, z_criterion):
             # font = data['font'].to(device)
             # char = data['char'].to(device)
             attr = data['attr'].to(device)
-            noise = torch.randn((image.size(0), 8))
+            noise = torch.randn((image.size(0), 8)).to(device)
             attr = torch.cat([attr, noise], dim=1)
 
             if i == 0:
@@ -186,7 +187,7 @@ def train(args, model, encoder, optimizer, z_criterion):
             loss, z_loss, log_p_c, log_det_c, log_p_t, log_det_t = \
                 calc_loss_triple(log_p_c, logdet_c, z_encode_c,
                                  log_p_t, logdet_t, z_encode_t,
-                                 z_s, z_criterion, 2,
+                                 z_s, z_criterion, 1,
                                  args.img_size, n_bins)
             model.zero_grad()
             loss.backward()
@@ -218,7 +219,6 @@ def train(args, model, encoder, optimizer, z_criterion):
                         z_new = torch.randn(args.n_sample, *z) * args.temp
                         z_sample.append(z_new.to(device))
 
-                    # TODO: sample
                     # sample at first
                     utils.save_image(
                         model_single.reverse(z_sample_first, z_sample_first)[1].cpu().data,
@@ -300,7 +300,8 @@ if __name__ == '__main__':
     encoder = nn.DataParallel(encoder_single)
     encoder = encoder.to(device)
 
-    optimizer = optim.Adam(model.parameters()+encoder.parameters(), lr=args.lr)
+    all_parameters = list(model.parameters()) + list(encoder.parameters())
+    optimizer = optim.Adam(all_parameters, lr=args.lr)
 
     z_criterion = nn.MSELoss()
-    train(args, model, encoder, optimizer)
+    train(args, model, encoder, optimizer, z_criterion)
